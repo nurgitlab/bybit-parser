@@ -34,8 +34,7 @@ func main() {
 		log.Error("Database connect Error", sl.Err(err))
 		os.Exit(1)
 	}
-
-	err = storage.DeleteURL("m1")
+	err = storage.UpdateURL("ккккy", "newYandex")
 
 	if err != nil {
 		log.Error("Get URL Error", sl.Err(err))
