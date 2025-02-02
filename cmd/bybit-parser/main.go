@@ -2,10 +2,20 @@ package main
 
 import (
 	"bybit-parser/internal/config"
-	"bybit-parser/internal/lig/logger/sl"
+	"bybit-parser/internal/http-server/handlers/url/delete"
+	"bybit-parser/internal/http-server/handlers/url/read"
+	"bybit-parser/internal/http-server/handlers/url/save"
+	"bybit-parser/internal/http-server/handlers/url/update"
+
+	mwLogger "bybit-parser/internal/http-server/middleware/logger"
+	"bybit-parser/internal/lib/logger/handlers/slogpretty"
+	"bybit-parser/internal/lib/logger/sl"
 	"bybit-parser/internal/storage/psql"
 	"fmt"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"log/slog"
+	"net/http"
 	"os"
 )
 
@@ -34,26 +44,43 @@ func main() {
 		log.Error("Database connect Error", sl.Err(err))
 		os.Exit(1)
 	}
-	err = storage.UpdateURL("ккккy", "newYandex")
 
-	if err != nil {
-		log.Error("Get URL Error", sl.Err(err))
+	router := chi.NewRouter()
+	router.Use(middleware.RequestID) //добавляет Request Id для трейсинга
+	router.Use(middleware.RealIP)
+
+	router.Use(middleware.Logger) //логирование всех входящих запросов
+	router.Use(mwLogger.New(log))
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.URLFormat)
+
+	router.Post("/url", save.New(log, storage))
+	router.Delete("/url", delete.Url(log, storage))
+	router.Patch("/url", update.New(log, storage))
+	router.Get("/url", read.New(log, storage))
+
+	log.Info("Сервер запущен", slog.String("address", cfg.Address))
+
+	srv := &http.Server{
+		Addr:         cfg.Address,
+		Handler:      router,
+		ReadTimeout:  cfg.HTTPServer.Timeout,
+		WriteTimeout: cfg.HTTPServer.Timeout,
+		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
 	}
 
-	//id, err := storage.SaveURL("mail1", "m11")
-	//if err != nil {
-	//	log.Error("Save URL Error", sl.Err(err))
-	//}
-	//log.Info("saved url1", id)
-	//
-	//_ = storage
+	if err := srv.ListenAndServe(); err != nil {
+		log.Error("failed to start server", sl.Err(err))
+	}
+
+	log.Error("failed to start server")
 }
 
 func setupLogger(env string) *slog.Logger {
 	var log *slog.Logger
 	switch env {
 	case envLocal:
-		log = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		log = setupPrettySlog()
 	case envDev:
 		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	case envProd:
@@ -62,4 +89,15 @@ func setupLogger(env string) *slog.Logger {
 	}
 
 	return log
+}
+
+func setupPrettySlog() *slog.Logger {
+	opts := slogpretty.PrettyHandlerOptions{
+		SlogOpts: &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}}
+
+	handler := opts.NewPrettyHandler(os.Stdout)
+
+	return slog.New(handler)
 }

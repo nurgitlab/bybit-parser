@@ -1,7 +1,7 @@
 package psql
 
 import (
-	"bybit-parser/internal/lig/logger/sl"
+	"bybit-parser/internal/lib/logger/sl"
 	"bybit-parser/internal/storage"
 	"database/sql"
 	"errors"
@@ -20,6 +20,32 @@ func (s *Storage) SaveURL(url string, alias string) (int64, error) {
 	fmt.Printf("%s\t%s\t%s\n", lastInsertId, url, alias)
 
 	return lastInsertId, nil
+}
+
+func (s *Storage) GetAlias(url string) ([]string, error) {
+	const op = "storage.psql.GetAlias"
+
+	aliases := []string{}
+
+	rows, err := s.db.Query("SELECT alias FROM url WHERE url = $1", url)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var resUrl string
+		if err := rows.Scan(&resUrl); err != nil {
+			return aliases, err
+		}
+		aliases = append(aliases, resUrl)
+	}
+
+	if err != nil {
+		return aliases, fmt.Errorf("%s: %w", op, sl.Err(err))
+	}
+
+	return aliases, nil
 }
 
 func (s *Storage) GetURL(alias string) (string, error) {
