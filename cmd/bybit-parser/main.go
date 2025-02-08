@@ -2,11 +2,12 @@ package main
 
 import (
 	"bybit-parser/internal/config"
+	read_orderbook "bybit-parser/internal/http-server/handlers/bybit/read-orderbook"
 	"bybit-parser/internal/http-server/handlers/url/delete"
 	"bybit-parser/internal/http-server/handlers/url/read"
+	readall "bybit-parser/internal/http-server/handlers/url/read-all"
 	"bybit-parser/internal/http-server/handlers/url/save"
 	"bybit-parser/internal/http-server/handlers/url/update"
-
 	mwLogger "bybit-parser/internal/http-server/middleware/logger"
 	"bybit-parser/internal/lib/logger/handlers/slogpretty"
 	"bybit-parser/internal/lib/logger/sl"
@@ -58,6 +59,9 @@ func main() {
 	router.Delete("/url", delete.Url(log, storage))
 	router.Patch("/url", update.New(log, storage))
 	router.Get("/url", read.New(log, storage))
+	router.Get("/all-urls", readall.New(log, storage))
+
+	router.Get("/bybit/orders", read_orderbook.New(log, storage))
 
 	log.Info("Сервер запущен", slog.String("address", cfg.Address))
 
